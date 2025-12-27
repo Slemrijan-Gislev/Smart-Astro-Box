@@ -1,9 +1,6 @@
 /*
  * ------------------------------------------------------------------------
- * SMART ASTRO BOX - DUAL CORE EDITION (The Pro Solution)
- * ------------------------------------------------------------------------
- * CORE 1: Dedicated exclusively to Stepper Motor (Silky smooth movement)
- * CORE 0: Handles WiFi, ASCOM Alpaca API, Weather Sensor, and Dew Control
+ * SMART ASTRO BOX - DUAL CORE EDITION (FIXED & COMPLETE)
  * ------------------------------------------------------------------------
  */
 
@@ -45,21 +42,18 @@ WiFiUDP udp;
 AccelStepper stepper(AccelStepper::DRIVER, MOTOR_STEP_PIN, MOTOR_DIR_PIN);
 Adafruit_BME280 bme;
 
-// --- SHARED VARIABLES (The "Bridge" between Cores) ---
-// volatile ensures the processor reads the actual value from memory every time
-volatile long sharedTargetPosition = 0;   // Core 0 writes here -> Core 1 reads
-volatile long sharedCurrentPosition = 0;  // Core 1 writes here -> Core 0 reads
-volatile bool sharedIsMoving = false;     // Core 1 writes here -> Core 0 reads
-volatile bool cmdStop = false;            // Emergency stop flag
+// --- SHARED VARIABLES ---
+volatile long sharedTargetPosition = 0;   
+volatile long sharedCurrentPosition = 0;  
+volatile bool sharedIsMoving = false;     
+volatile bool cmdStop = false;            
 
-// Heater Variables (Managed by Core 0)
+// Heater Variables
 int currentPower1 = 0;
 int currentPower2 = 0;
 bool autoDewEnabled = true;
 
 uint32_t transactionId = 0;
-
-// Task Handle for the Network Loop
 TaskHandle_t TaskCore0;
 
 // ============================================================================
@@ -92,14 +86,12 @@ void handleDiscovery() {
   }
 }
 
-// This function runs on Core 0 separate from the motor
+// Netværks-loopet på Core 0
 void NetworkLoop(void * pvParameters) {
-  Serial.print("Network/Sensor Task running on Core: ");
+  Serial.print("Network Task running on Core: ");
   Serial.println(xPortGetCoreID());
 
-  // Define API Routes here (Standard Setup)
-  
-  // Management
+  // --- MANAGEMENT API ---
   server.on("/management/apiversions", HTTP_GET, []() {
     JsonDocument doc; JsonArray arr = doc.createNestedArray("Value"); arr.add(1); sendResponse(doc);
   });
@@ -112,30 +104,26 @@ void NetworkLoop(void * pvParameters) {
     sendResponse(doc);
   });
 
-  // --- FOCUSER API (Interacts with Shared Variables) ---
+  // --- FOCUSER API ---
   server.on("/api/v1/focuser/0/connected", HTTP_GET, []() { JsonDocument doc; doc["Value"] = true; sendResponse(doc); });
   server.on("/api/v1/focuser/0/connected", HTTP_PUT, []() { JsonDocument doc; doc["Value"] = true; sendResponse(doc); });
   server.on("/api/v1/focuser/0/name", HTTP_GET, []() { JsonDocument doc; doc["Value"] = "ESP32 DualCore"; sendResponse(doc); });
   server.on("/api/v1/focuser/0/driverinfo", HTTP_GET, []() { JsonDocument doc; doc["Value"] = "DualCore Driver"; sendResponse(doc); });
-  server.on("/api/v1/focuser/0/driverversion", HTTP_GET, []() { JsonDocument doc; doc["Value"] = "3.0 PRO"; sendResponse(doc); });
+  server.on("/api/v1/focuser/0/driverversion", HTTP_GET, []() { JsonDocument doc; doc["Value"] = "3.2 FINAL"; sendResponse(doc); });
   server.on("/api/v1/focuser/0/interfaceversion", HTTP_GET, []() { JsonDocument doc; doc["Value"] = 1; sendResponse(doc); });
   
   server.on("/api/v1/focuser/0/absolute", HTTP_GET, []() { JsonDocument doc; doc["Value"] = true; sendResponse(doc); });
   server.on("/api/v1/focuser/0/maxstep", HTTP_GET, []() { JsonDocument doc; doc["Value"] = 100000; sendResponse(doc); });
   server.on("/api/v1/focuser/0/stepsize", HTTP_GET, []() { JsonDocument doc; doc["Value"] = 4.0; sendResponse(doc); });
   
-  // Temperature from BME280
   server.on("/api/v1/focuser/0/temperature", HTTP_GET, []() { JsonDocument doc; doc["Value"] = bme.readTemperature(); sendResponse(doc); });
-  
   server.on("/api/v1/focuser/0/tempcompavailable", HTTP_GET, []() { JsonDocument doc; doc["Value"] = false; sendResponse(doc); });
   server.on("/api/v1/focuser/0/tempcomp", HTTP_GET, []() { JsonDocument doc; doc["Value"] = false; sendResponse(doc); });
   server.on("/api/v1/focuser/0/tempcomp", HTTP_PUT, []() { JsonDocument doc; sendResponse(doc); });
 
-  // POSITION: Read from Shared Variable
   server.on("/api/v1/focuser/0/position", HTTP_GET, []() { JsonDocument doc; doc["Value"] = sharedCurrentPosition; sendResponse(doc); });
   server.on("/api/v1/focuser/0/ismoving", HTTP_GET, []() { JsonDocument doc; doc["Value"] = sharedIsMoving; sendResponse(doc); });
   
-  // MOVE: Write to Shared Variable
   server.on("/api/v1/focuser/0/move", HTTP_PUT, []() { 
     if(server.hasArg("Position")) { 
       sharedTargetPosition = server.arg("Position").toInt(); 
@@ -143,30 +131,39 @@ void NetworkLoop(void * pvParameters) {
     JsonDocument doc; sendResponse(doc); 
   });
   
-  server.on("/api/v1/focuser/0/halt", HTTP_PUT, []() { 
-    cmdStop = true; // Signal Core 1 to stop immediately
-    JsonDocument doc; sendResponse(doc); 
-  });
+  server.on("/api/v1/focuser/0/halt", HTTP_PUT, []() { cmdStop = true; JsonDocument doc; sendResponse(doc); });
 
-  // --- SWITCH & WEATHER API (Same as before) ---
-  // (Forkortet for overblik - Switche og Sensor virker præcis som før, men kører nu isoleret på Core 0)
+  // --- SWITCH API ---
   server.on("/api/v1/switch/0/connected", HTTP_GET, []() { JsonDocument doc; doc["Value"] = true; sendResponse(doc); });
   server.on("/api/v1/switch/0/connected", HTTP_PUT, []() { JsonDocument doc; doc["Value"] = true; sendResponse(doc); });
   server.on("/api/v1/switch/0/maxswitch", HTTP_GET, []() { JsonDocument doc; doc["Value"] = 3; sendResponse(doc); });
   server.on("/api/v1/switch/0/canwrite", HTTP_GET, []() { JsonDocument doc; doc["Value"] = true; sendResponse(doc); });
+  
   server.on("/api/v1/switch/0/getswitchname", HTTP_GET, []() { 
     int id = server.arg("Id").toInt(); JsonDocument doc; 
     if (id == 0) doc["Value"] = "Heater 1"; else if (id == 1) doc["Value"] = "Heater 2"; else doc["Value"] = "Auto Dew"; 
     sendResponse(doc); 
   });
+  
+  // FIX: Den manglende beskrivelse
+  server.on("/api/v1/switch/0/getswitchdescription", HTTP_GET, []() { 
+    int id = server.arg("Id").toInt(); JsonDocument doc; 
+    if (id == 0) doc["Value"] = "Heater 1 Power (0-100)";
+    else if (id == 1) doc["Value"] = "Heater 2 Power (0-100)";
+    else doc["Value"] = "Enable Auto Dew Control"; 
+    sendResponse(doc); 
+  });
+
   server.on("/api/v1/switch/0/maxswitchvalue", HTTP_GET, []() { int id = server.arg("Id").toInt(); JsonDocument doc; doc["Value"] = (id < 2) ? 100.0 : 1.0; sendResponse(doc); });
   server.on("/api/v1/switch/0/minswitchvalue", HTTP_GET, []() { JsonDocument doc; doc["Value"] = 0.0; sendResponse(doc); });
   server.on("/api/v1/switch/0/switchstep", HTTP_GET, []() { JsonDocument doc; doc["Value"] = 1.0; sendResponse(doc); });
+  
   server.on("/api/v1/switch/0/getswitchvalue", HTTP_GET, []() { 
     int id = server.arg("Id").toInt(); JsonDocument doc; 
     if (id == 0) doc["Value"] = currentPower1; if (id == 1) doc["Value"] = currentPower2; if (id == 2) doc["Value"] = autoDewEnabled ? 1.0 : 0.0;
     sendResponse(doc);
   });
+  
   server.on("/api/v1/switch/0/setswitchvalue", HTTP_PUT, []() { 
     int id = server.arg("Id").toInt(); double val = server.arg("Value").toDouble();
     if (id == 0) { currentPower1 = (int)val; ledcWrite(HEATER_1_PIN, map(currentPower1, 0, 100, 0, 255)); autoDewEnabled = false; }
@@ -175,6 +172,7 @@ void NetworkLoop(void * pvParameters) {
     JsonDocument doc; sendResponse(doc);
   });
 
+  // --- OBSERVING CONDITIONS API ---
   server.on("/api/v1/observingconditions/0/connected", HTTP_GET, []() { JsonDocument doc; doc["Value"] = true; sendResponse(doc); });
   server.on("/api/v1/observingconditions/0/connected", HTTP_PUT, []() { JsonDocument doc; doc["Value"] = true; sendResponse(doc); });
   server.on("/api/v1/observingconditions/0/temperature", HTTP_GET, []() { JsonDocument doc; doc["Value"] = bme.readTemperature(); sendResponse(doc); });
@@ -188,15 +186,11 @@ void NetworkLoop(void * pvParameters) {
 
   server.begin();
 
-  // Infinite Loop for Core 0
   unsigned long lastDewCheck = 0;
-
   while(true) {
     server.handleClient();
     handleDiscovery();
 
-    // Auto Dew Logic (Runs every 2 seconds)
-    // No need to pause for motor here, because we are on a different core!
     if (millis() - lastDewCheck > 2000) {
       lastDewCheck = millis();
       if (autoDewEnabled) {
@@ -215,24 +209,21 @@ void NetworkLoop(void * pvParameters) {
          ledcWrite(HEATER_1_PIN, map(currentPower1, 0, 100, 0, 255));
       }
     }
-    
-    // Important: Give a tiny breath to the Watchdog so it doesn't think Core 0 is frozen
     delay(1); 
   }
 }
 
 // ============================================================================
-//   MAIN SETUP (Runs on Core 1 initially)
+//   MAIN SETUP (Runs on Core 1)
 // ============================================================================
 
 void setup() {
   Serial.begin(115200);
   
-  // --- Hardware Setup ---
   pinMode(MOTOR_EN_PIN, OUTPUT);
   digitalWrite(MOTOR_EN_PIN, LOW); 
   
-  stepper.setMaxSpeed(1000);     // Can run faster now because it has a dedicated core!
+  stepper.setMaxSpeed(1000);    
   stepper.setAcceleration(500);
 
   ledcAttach(HEATER_1_PIN, 5000, 8); ledcWrite(HEATER_1_PIN, 0);
@@ -241,7 +232,6 @@ void setup() {
   Wire.begin(I2C_SDA, I2C_SCL);
   if (!bme.begin(0x76)) { if (!bme.begin(0x77)) Serial.println("ERROR: No BME280 sensor found!"); }
 
-  // --- WiFi Setup ---
   WiFi.config(local_IP, gateway, subnet);
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
@@ -250,45 +240,29 @@ void setup() {
   
   udp.begin(32227); 
 
-  // --- START CORE 0 TASK ---
-  // This launches the "Brain" on the other core
-  xTaskCreatePinnedToCore(
-    NetworkLoop,   // Function to run
-    "NetworkTask", // Name of task
-    10000,         // Stack size (bytes)
-    NULL,          // Parameter
-    1,             // Priority
-    &TaskCore0,    // Task handle
-    0              // Core ID (0 is the secondary core, 1 is the main Arduino core)
-  );
+  // HER GIK DET GALT SIDST - SIKR DIG AT DENNE LINJE ER KOMPLET:
+  xTaskCreatePinnedToCore(NetworkLoop, "NetworkTask", 10000, NULL, 1, &TaskCore0, 0);
   
   Serial.println("Dual Core System Started.");
 }
 
 // ============================================================================
-//   CORE 1 LOOP: MOTOR ONLY (The Muscle)
+//   CORE 1 LOOP: MOTOR ONLY
 // ============================================================================
 
 void loop() {
-  // 1. Check for Stop Command
   if (cmdStop) {
     stepper.stop();
-    // Sync positions
     sharedTargetPosition = stepper.currentPosition(); 
     stepper.moveTo(sharedTargetPosition);
     cmdStop = false;
   }
 
-  // 2. Check if Core 0 requested a new position
   if (sharedTargetPosition != stepper.targetPosition()) {
     stepper.moveTo(sharedTargetPosition);
   }
 
-  // 3. Run the Motor
-  // This runs UNINTERRUPTED by WiFi or Sensors!
   bool moving = stepper.run();
-
-  // 4. Update status for Core 0 to read
   sharedIsMoving = moving;
   sharedCurrentPosition = stepper.currentPosition();
 }
