@@ -1,66 +1,58 @@
-# Smart-Astro-Box
-ESP32 ASCOM Alpaca Smart Astro Box
-# ESP32 ASCOM Alpaca Astro Box
+# 🔭 ESP32 Smart Astro Box
 
-A DIY "Smart Astro Box" that controls a telescope focuser, dew heaters, and provides weather data via WiFi. 
+**Ultimate Edition v6.3**
 
-This project uses the **ASCOM Alpaca** protocol, meaning no drivers are required on the PC. It works natively with N.I.N.A., SGP, and other astrophotography software.
+An All-in-One observatory controller powered by ESP32. This device combines a Focuser, Dual Dew Heater Controller, Weather Station, and Status Display into a single unit, fully compatible with **ASCOM Alpaca** and **N.I.N.A.**
 
-## Features
+## ✨ Features
 
-* **Wireless Focuser:** Controls a stepper motor (NEMA 17) for precise focusing.
-* **Dual Dew Controller:**
-    * **Channel 1 (Primary):** Smart Automatic Dew Control using the BME280 sensor (maintains mirror temp just above dew point).
-    * **Channel 2 (Aux):** Manual slider control via software (e.g., for Guide Scope).
-* **Weather Station:** Reports Temperature, Humidity, and Dew Point to your imaging software (stores environment data in FITS headers).
-* **Driverless:** Connects via WiFi (ASCOM Alpaca).
+* **📡 ASCOM Alpaca Wireless:** No USB cables needed! Connects via WiFi (Static IP).
+* **⚙️ Stepper Motor Focuser:** Absolute positioning with memory (saves position on power loss).
+* **🌡️ Environmental Monitor:** Measures Temperature, Humidity, Pressure, and Dew Point (BME280).
+* **🔥 Dual Smart Dew Heater:** * 2x PWM Channels (RCA outputs).
+    * **Auto-Dew Algorithm:** Automatically adjusts power based on the Dew Point delta.
+* **🖥️ OLED Status Display:** 1.5" Screen (128x128) showing IP, Weather Data, and Focuser Position.
+* **🛡️ Crash-Proof:** Dual-Core processing and "Lazy Memory" writing ensures stable WiFi connection.
 
-## Hardware Required
+## 🛠️ Hardware & Pinout
 
-* **ESP32 Development Board** (e.g., ESP32-WROOM-32)
-* **Stepper Driver:** DRV8825 or A4988
-* **Stepper Motor:** NEMA 17
-* **MOSFET Modules:** 2x IRLZ44N or similar logic-level MOSFET modules (for heater control)
-* **Sensor:** BME280 (I2C version)
-* **Power:** 12V DC power supply + LM2596 Buck Converter (12V -> 5V for ESP32)
-
-## Wiring / Pinout
+**Microcontroller:** ESP32 Dev Kit V1
 
 | Component | ESP32 Pin | Note |
 | :--- | :--- | :--- |
-| **Stepper Step** | GPIO 14 | |
-| **Stepper Dir** | GPIO 12 | |
-| **Stepper Enable** | GPIO 13 | |
-| **Heater 1 (Main)**| GPIO 25 | PWM output to MOSFET Gate |
-| **Heater 2 (Aux)** | GPIO 26 | PWM output to MOSFET Gate |
-| **BME280 SDA** | GPIO 21 | I2C Data |
-| **BME280 SCL** | GPIO 22 | I2C Clock |
-| **BME280 VCC** | 3.3V | **IMPORTANT:** Do not use 5V! |
+| **Stepper Step** | GPIO 14 | To Driver (DIR) |
+| **Stepper Dir** | GPIO 12 | To Driver (STEP) |
+| **Stepper Enable**| GPIO 13 | To Driver (EN) |
+| **Heater 1** | GPIO 25 | PWM Output (MOSFET) |
+| **Heater 2** | GPIO 26 | PWM Output (MOSFET) |
+| **I2C SDA** | GPIO 21 | BME280 Sensor & OLED |
+| **I2C SCL** | GPIO 22 | BME280 Sensor & OLED |
 
-*Note: Ensure common ground between the 12V power source and the ESP32.*
+## 📦 Required Libraries
 
-## Installation
+To compile this project in Arduino IDE, install the following libraries:
 
-1.  Open the project in **Arduino IDE** or **PlatformIO**.
-2.  Install the required libraries:
-    * `WiFi`
-    * `ArduinoJson`
-    * `AccelStepper`
-    * `Adafruit BME280 Library`
-    * `Adafruit Unified Sensor`
-3.  **Configuration:**
-    * Edit the `ssid` and `password` variables in the code to match your WiFi network.
-    * (Optional) Set a static IP in the `local_IP` configuration to ensure the device address remains constant.
-4.  Upload the code to your ESP32.
+1.  **AccelStepper** (by Mike McCauley)
+2.  **ArduinoJson** (by Benoit Blanchon)
+3.  **Adafruit BME280 Library**
+4.  **Adafruit SH110X** (for the 1.5" OLED)
+5.  **Adafruit GFX Library**
 
-## Connecting to N.I.N.A. / ASCOM
+## 🚀 Setup Instructions
 
-1.  Make sure your PC and ESP32 are on the same WiFi network.
-2.  Open **N.I.N.A.**
-3.  **Focuser:** Go to Equipment -> Focuser, select "Alpaca Driver", and input the IP address (Port: 4567).
-4.  **Switch:** Go to Equipment -> Switch, select "Alpaca Driver" to control the dew heaters.
-5.  **Weather:** Go to Equipment -> Weather, select "Alpaca Driver" to get environmental data.
+1.  **WiFi Configuration:** Edit the `ssid`, `password`, and `local_IP` variables in `main.ino` to match your network.
+2.  **Upload:** Use Arduino IDE to upload the sketch to your ESP32.
+3.  **Connect:** Open N.I.N.A. (or any ASCOM software).
+    * **Focuser:** Select "Alpaca Focuser" -> Enter IP `192.168.8.10` Port `4567`.
+    * **Switch:** Select "Alpaca Switch" -> Same IP/Port (Controls Heaters).
+    * **Weather:** Select "Alpaca Observing Conditions" -> Same IP/Port.
 
-## License
+## 📊 Status Display
 
-This project is open source. Feel free to modify and share!
+The OLED screen provides real-time feedback:
+* **IP Address:** Never lose your device on the network.
+* **Weather:** Temp (C), Humidity (%), Pressure (hPa), Dew Point (C).
+* **Focus:** Current absolute position.
+
+---
+*Created by [Dit Navn]*
