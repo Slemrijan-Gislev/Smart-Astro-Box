@@ -55,4 +55,4 @@ The OLED screen provides real-time feedback:
 * **Focus:** Current absolute position.
 
 ---
-*Created by [Dit Navn]*
+*Created by Jan*
