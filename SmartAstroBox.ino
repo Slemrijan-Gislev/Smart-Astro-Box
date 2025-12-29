@@ -1,7 +1,7 @@
 /*
  * PROJECT: ESP32 SMART ASTRO BOX
  * VERSION: 6.3 (Ultimate Edition)
- * AUTHOR: [Dit Navn / GitHub Brugernavn]
+ * AUTHOR: Slemrijan-Gislev
  * DATE: 2023-10-21
  * * DESCRIPTION:
  * ASCOM Alpaca compatible Smart Box controlling:
